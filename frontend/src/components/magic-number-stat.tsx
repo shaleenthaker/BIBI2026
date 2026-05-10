@@ -1,6 +1,6 @@
 "use client";
 
-// Landing/dashboard stat. See design-system/MASTER.md §6.
+// Hero stat. Flat — no glow. See design-system §5.
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { cn } from "@/lib/utils";
 
@@ -20,13 +20,13 @@ export function MagicNumberStat({
       <div className="flex items-baseline gap-1">
         <NumberTicker
           value={value}
-          className="font-mono text-3xl font-medium tabular-nums text-foreground"
+          className="font-mono text-3xl font-semibold tabular-nums tracking-tight text-foreground"
         />
         {suffix && (
-          <span className="text-xl font-medium text-muted-foreground">{suffix}</span>
+          <span className="font-mono text-xl font-medium text-muted-foreground">{suffix}</span>
         )}
       </div>
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+      <div className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
     </div>

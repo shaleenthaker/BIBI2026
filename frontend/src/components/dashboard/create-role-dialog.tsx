@@ -34,24 +34,24 @@ export function CreateRoleDialog({
           <DialogTitle>Create role</DialogTitle>
           <DialogDescription>
             Sniper turns this into a weighted scoring rubric. You can tune weights from the
-            pipeline view later.
+            pipeline view.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="role-title" className="text-xs">
+            <Label htmlFor="role-title" className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               Role title
             </Label>
             <Input
               id="role-title"
-              placeholder="e.g. Senior Frontend Engineer"
+              placeholder="Senior Frontend Engineer"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="role-team" className="text-xs">
+            <Label htmlFor="role-team" className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               Team
             </Label>
             <Input
@@ -62,7 +62,7 @@ export function CreateRoleDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="role-stack" className="text-xs">
+            <Label htmlFor="role-stack" className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               Stack signals (comma separated)
             </Label>
             <Input
@@ -84,7 +84,7 @@ export function CreateRoleDialog({
           </Button>
           <Button
             disabled={!title.trim()}
-            className="cursor-pointer"
+            className="cursor-pointer gap-1.5"
             onClick={() => {
               onCreated(title.trim());
               onOpenChange(false);

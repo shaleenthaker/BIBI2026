@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LivePulse } from "@/components/live-pulse";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { mockRecruiter } from "@/lib/mock-data";
 
@@ -16,21 +17,17 @@ export function DashboardTopbar({
   onBellClick: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-border bg-background/85 px-5 backdrop-blur">
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-medium hover:bg-accent cursor-pointer"
-        >
-          <span className="grid size-5 place-items-center rounded-sm bg-primary text-[10px] font-mono font-semibold text-primary-foreground">
-            {mockRecruiter.workspace.slice(0, 1)}
-          </span>
-          {mockRecruiter.workspace}
-          <ChevronDown className="size-3 text-muted-foreground" />
-        </button>
-        <span className="text-xs text-muted-foreground hidden sm:inline">/</span>
-        <span className="text-xs hidden sm:inline">All roles</span>
-      </div>
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-border bg-background/90 px-5 backdrop-blur">
+      <button
+        type="button"
+        className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-secondary cursor-pointer"
+      >
+        <span className="grid size-5 place-items-center rounded-sm bg-primary text-[10px] font-mono font-semibold text-primary-foreground">
+          {mockRecruiter.workspace.slice(0, 1)}
+        </span>
+        <span className="hidden sm:inline">{mockRecruiter.workspace}</span>
+        <ChevronDown className="size-3 text-muted-foreground" />
+      </button>
 
       <div className="hidden flex-1 max-w-md md:block">
         <div className="relative">
@@ -45,12 +42,19 @@ export function DashboardTopbar({
         </div>
       </div>
 
+      <span className="ml-auto hidden items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] sm:inline-flex">
+        <LivePulse tone="success" />
+        <span className="font-mono uppercase tracking-wider text-muted-foreground">
+          Watching 47 hackathons
+        </span>
+      </span>
+
       <div className="flex items-center gap-1.5">
         <Button
           variant="ghost"
           size="icon"
           className="relative cursor-pointer"
-          aria-label="Gem alerts"
+          aria-label={`${gemCount} gem alerts`}
           onClick={onBellClick}
         >
           <Bell className="size-4" />
@@ -59,7 +63,8 @@ export function DashboardTopbar({
               key={gemCount}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-gem font-mono text-[9px] font-medium text-gem-foreground tabular-nums"
+              transition={{ type: "spring", stiffness: 360, damping: 22 }}
+              className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-success font-mono text-[9px] font-medium text-success-foreground tabular-nums"
             >
               {gemCount}
             </motion.span>
@@ -68,7 +73,7 @@ export function DashboardTopbar({
         <ThemeToggle />
         <div className="ml-2 flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1">
           <Avatar className="size-6">
-            <AvatarFallback className="font-mono text-[10px]">
+            <AvatarFallback className="bg-secondary font-mono text-[10px]">
               {mockRecruiter.initials}
             </AvatarFallback>
           </Avatar>

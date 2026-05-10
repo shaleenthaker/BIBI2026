@@ -1,15 +1,22 @@
 "use client";
 
-// Pipeline list row. See design-system/MASTER.md §6.
+// Pipeline list row — flat, dense, drill-down affordance. See design-system §3, §5.
 import { motion } from "framer-motion";
-import { Gem, GitBranch, Globe2, Sparkles } from "lucide-react";
+import {
+  ChevronRight,
+  Gem,
+  GitBranch,
+  Globe2,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { cn } from "@/lib/utils";
 import type { Candidate, OAStatus } from "@/lib/mock-data";
 
-const sourceIcon: Record<Candidate["source"], React.ComponentType<{ className?: string }>> = {
+const sourceIcon: Record<Candidate["source"], LucideIcon> = {
   Devpost: Sparkles,
   GitHub: GitBranch,
   Direct: Globe2,
@@ -17,9 +24,9 @@ const sourceIcon: Record<Candidate["source"], React.ComponentType<{ className?: 
 
 const oaStatusTone: Record<OAStatus, string> = {
   Pending: "bg-muted text-muted-foreground border-border",
-  "In Progress": "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400",
-  Submitted: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400",
-  Graded: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+  "In Progress": "bg-warning-soft text-warning-foreground border-warning/30",
+  Submitted: "bg-info-soft text-accent border-accent/30",
+  Graded: "bg-success-soft text-success border-success/30",
 };
 
 export function CandidateCard({
@@ -48,56 +55,67 @@ export function CandidateCard({
       onClick={onClick}
       type="button"
       className={cn(
-        "group relative flex w-full items-center gap-3 rounded-md border bg-card px-3 py-2.5 text-left transition-colors duration-150 cursor-pointer",
-        "hover:border-primary/40 hover:bg-accent/40",
-        selected ? "border-primary/60 bg-accent/40" : "border-border",
+        "group relative grid w-full grid-cols-[36px_minmax(0,1fr)_auto_auto] items-center gap-3 border-l-2 bg-card px-3 py-2.5 text-left transition-colors duration-150 cursor-pointer",
+        "hover:bg-muted/40",
+        selected
+          ? "border-l-accent bg-info-soft/40"
+          : candidate.isGem
+            ? "border-l-success/60"
+            : "border-l-transparent",
       )}
     >
       <Avatar className="size-9 shrink-0">
-        <AvatarFallback className="bg-muted font-mono text-xs">{initials}</AvatarFallback>
+        <AvatarFallback className="bg-secondary font-mono text-xs">
+          {initials}
+        </AvatarFallback>
       </Avatar>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-sm font-medium">{candidate.name}</span>
           {candidate.isGem && (
             <span
               aria-label="Gem candidate"
-              title="Gem candidate"
-              className="inline-flex items-center gap-1 rounded-full bg-gem-soft px-1.5 py-0.5 text-[10px] font-medium text-gem"
+              className="inline-flex items-center gap-0.5 rounded-sm bg-success-soft px-1 py-0 font-mono text-[9px] font-medium uppercase text-success"
             >
-              <Gem className="size-3" />
+              <Gem className="size-2.5" />
               gem
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <SourceIcon className="size-3" />
-            {candidate.source}
-          </span>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <SourceIcon className="size-3" aria-hidden />
+          <span>{candidate.source}</span>
           <span aria-hidden>·</span>
-          <span className="font-mono tabular-nums">@{candidate.handle}</span>
+          <span className="truncate font-mono">{candidate.topProject.name}</span>
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <div className="flex items-baseline gap-1">
+      <Badge
+        variant="outline"
+        className={cn(
+          "h-5 shrink-0 px-1.5 font-mono text-[10px] uppercase tracking-wider",
+          oaStatusTone[candidate.oaStatus],
+        )}
+      >
+        {candidate.oaStatus}
+      </Badge>
+
+      <div className="flex shrink-0 items-center gap-2.5 pl-1">
+        <div className="flex items-baseline gap-0.5 text-right">
           <NumberTicker
             value={Number((composite * 100).toFixed(0))}
-            className="font-mono text-sm font-medium tabular-nums text-foreground"
+            className="font-mono text-sm font-semibold tabular-nums text-foreground"
           />
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">/100</span>
+          <span className="font-mono text-[10px] text-muted-foreground">/100</span>
         </div>
-        <Badge
-          variant="outline"
+        <ChevronRight
           className={cn(
-            "h-5 px-1.5 text-[10px] font-medium",
-            oaStatusTone[candidate.oaStatus],
+            "size-3.5 text-muted-foreground transition-transform duration-150",
+            selected ? "translate-x-0 text-foreground" : "group-hover:translate-x-0.5",
           )}
-        >
-          {candidate.oaStatus}
-        </Badge>
+          aria-hidden
+        />
       </div>
     </motion.button>
   );
