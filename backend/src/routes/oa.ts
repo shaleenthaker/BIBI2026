@@ -95,8 +95,11 @@ oaRoute.post("/dispatch", async (c) => {
 // ── GET /api/oa/:token ────────────────────────────────────────────────────────
 // Validates a token and returns candidate + questions.
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 oaRoute.get("/:token", async (c) => {
   const token = c.req.param("token");
+  if (!UUID_RE.test(token)) return c.json({ error: "token_not_found" }, 404);
 
   const { data: tokenRow, error: tokenErr } = await db()
     .from("oa_tokens")
@@ -140,6 +143,7 @@ const submitSchema = z.object({
 
 oaRoute.post("/:token/submit", async (c) => {
   const token = c.req.param("token");
+  if (!UUID_RE.test(token)) return c.json({ error: "token_not_found" }, 404);
   const body = await c.req.json().catch(() => null);
   const parsed = submitSchema.safeParse(body);
   if (!parsed.success) {
