@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Briefcase, Gem, Radar, Send, Sparkles, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
@@ -13,26 +13,33 @@ import { CreateRoleDialog } from "@/components/dashboard/create-role-dialog";
 import { GemAlert, type GemAlertPayload } from "@/components/gem-alert";
 import { JourneySteps, defaultJourneySteps, type JourneyStep } from "@/components/journey-steps";
 import { KpiStrip } from "@/components/kpi-strip";
-import { mockCandidates, mockRoles, type Role } from "@/lib/mock-data";
-
-const FLAGGED_GEMS = mockCandidates.filter((c) => c.isGem);
+import { type Candidate, type Role } from "@/lib/mock-data";
+import { fetchRoles, fetchGems } from "@/lib/api";
 
 export default function DashboardPage() {
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [gems, setGems] = useState<Candidate[]>([]);
   const [activeRole, setActiveRole] = useState<Role | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [alert, setAlert] = useState<GemAlertPayload | null>(null);
   const [highlightCandidateId, setHighlightCandidateId] = useState<string | undefined>();
 
-  const totalGems = useMemo(
-    () => mockRoles.reduce((sum, r) => sum + r.gemsFlagged, 0),
-    [],
-  );
+  useEffect(() => {
+    fetchRoles().then(setRoles).catch(console.error);
+    fetchGems().then(setGems).catch(console.error);
+  }, []);
+
+  const totalGems = useMemo(() => roles.reduce((sum, r) => sum + r.gemsFlagged, 0), [roles]);
   const totalCandidates = useMemo(
-    () => mockRoles.reduce((sum, r) => sum + r.candidatesInPipeline, 0),
-    [],
+    () => roles.reduce((sum, r) => sum + r.candidatesInPipeline, 0),
+    [roles],
   );
-  const totalOAs = useMemo(() => mockRoles.reduce((sum, r) => sum + r.oasOut, 0), []);
-  const [gemCount, setGemCount] = useState(totalGems);
+  const totalOAs = useMemo(() => roles.reduce((sum, r) => sum + r.oasOut, 0), [roles]);
+  const [gemCount, setGemCount] = useState(0);
+
+  useEffect(() => {
+    setGemCount(totalGems);
+  }, [totalGems]);
 
   const journey: JourneyStep[] = useMemo(
     () => [
@@ -48,7 +55,7 @@ export default function DashboardPage() {
             size="sm"
             variant="outline"
             className="cursor-pointer gap-1.5"
-            onClick={() => setActiveRole(mockRoles[0])}
+            onClick={() => roles[0] && setActiveRole(roles[0])}
           >
             <Radar className="size-3.5" />
             Open the pipeline
@@ -60,13 +67,13 @@ export default function DashboardPage() {
         status: "todo",
       },
     ],
-    [],
+    [roles],
   );
 
   const simulateGemAlert = () => {
-    const next = FLAGGED_GEMS[Math.floor(Math.random() * FLAGGED_GEMS.length)];
+    const next = gems[Math.floor(Math.random() * gems.length)];
     if (!next) return;
-    const role = mockRoles.find((r) => r.id === next.roleId);
+    const role = roles.find((r) => r.id === next.roleId);
     setAlert({
       id: `${next.id}-${Date.now()}`,
       candidate: next.name,
@@ -79,9 +86,9 @@ export default function DashboardPage() {
   const dismissAlert = () => setAlert(null);
   const viewAlertCandidate = () => {
     if (!alert) return;
-    const c = FLAGGED_GEMS.find((x) => alert.candidate === x.name);
+    const c = gems.find((x) => alert.candidate === x.name);
     if (c) {
-      const role = mockRoles.find((r) => r.id === c.roleId) ?? null;
+      const role = roles.find((r) => r.id === c.roleId) ?? null;
       setActiveRole(role);
       setHighlightCandidateId(c.id);
     }
@@ -176,7 +183,7 @@ export default function DashboardPage() {
                     },
                     {
                       label: "Open roles",
-                      value: mockRoles.length,
+                      value: roles.length,
                       icon: Briefcase,
                       delta: { value: 0, period: "no change" },
                       trend: [3, 3, 3, 3, 3, 3, 3, 3],
@@ -187,6 +194,7 @@ export default function DashboardPage() {
                 <JourneySteps steps={journey} />
 
                 <RoleList
+                  roles={roles}
                   onOpen={(r) => setActiveRole(r)}
                   onCreate={() => setCreateOpen(true)}
                 />

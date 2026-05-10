@@ -11,26 +11,45 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { SiteMark } from "@/components/site-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { mockOAQuestions } from "@/lib/mock-data";
+import { type OAQuestion } from "@/lib/mock-data";
+import { fetchOA, submitOA, apiOAQuestionToOAQuestion } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Stage = "welcome" | "questions" | "submitted";
+type Stage = "loading" | "error" | "welcome" | "questions" | "submitted";
 
 export default function OAPage() {
-  const [stage, setStage] = useState<Stage>("welcome");
+  const params = useParams<{ token: string }>();
+  const token = params?.token ?? "";
+
+  const [stage, setStage] = useState<Stage>("loading");
+  const [questions, setQuestions] = useState<OAQuestion[]>([]);
+  const [roleTitle, setRoleTitle] = useState("Assessment");
   const [questionIndex, setQuestionIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [tabSwitches, setTabSwitches] = useState(0);
   const [pasteEvents, setPasteEvents] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(45 * 60);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const current = mockOAQuestions[questionIndex];
-  const totalQuestions = mockOAQuestions.length;
+  useEffect(() => {
+    if (!token) return;
+    fetchOA(token)
+      .then((data) => {
+        setQuestions(data.questions.map(apiOAQuestionToOAQuestion));
+        setRoleTitle(data.candidate?.role_id ?? "Assessment");
+        setStage("welcome");
+      })
+      .catch(() => setStage("error"));
+  }, [token]);
+
+  const current = questions[questionIndex];
+  const totalQuestions = questions.length;
 
   useEffect(() => {
     if (stage !== "questions") return;
@@ -55,12 +74,21 @@ export default function OAPage() {
   const minutesLeft = Math.floor(secondsLeft / 60);
   const secsLeft = secondsLeft % 60;
 
-  const advance = () => {
+  const advance = async () => {
     setDirection(1);
     if (questionIndex + 1 < totalQuestions) {
       setQuestionIndex((i) => i + 1);
     } else {
-      setStage("submitted");
+      const responses = Object.entries(answers).map(([questionId, answer]) => ({
+        questionId,
+        answer: String(answer),
+      }));
+      try {
+        await submitOA(token, responses);
+        setStage("submitted");
+      } catch {
+        setSubmitError("Submission failed — please try again.");
+      }
     }
   };
 
@@ -84,7 +112,7 @@ export default function OAPage() {
           <div className="flex items-center gap-3">
             <SiteMark size="sm" />
             <span className="text-muted-foreground">·</span>
-            <span className="text-sm font-medium">Senior Frontend Engineer</span>
+            <span className="text-sm font-medium">{roleTitle}</span>
             <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
               · Acme Talent
             </span>
@@ -106,6 +134,33 @@ export default function OAPage() {
 
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-10">
         <AnimatePresence mode="wait">
+          {stage === "loading" && (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-1 items-center justify-center py-24 text-sm text-muted-foreground"
+            >
+              Loading assessment…
+            </motion.div>
+          )}
+
+          {stage === "error" && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="rounded-lg border border-border bg-card p-8 text-center"
+            >
+              <p className="text-sm font-medium">This link is invalid or has already been used.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Contact the recruiting team if you believe this is a mistake.
+              </p>
+            </motion.div>
+          )}
+
           {stage === "welcome" && <WelcomeStage key="welcome" onBegin={() => setStage("questions")} totalQuestions={totalQuestions} />}
 
           {stage === "questions" && current && (
@@ -200,29 +255,34 @@ export default function OAPage() {
                     />
                   )}
 
-                  <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
-                    <Button
-                      variant="ghost"
-                      className="cursor-pointer gap-1.5"
-                      disabled={questionIndex === 0}
-                      onClick={goBack}
-                    >
-                      <ArrowLeft className="size-3.5" />
-                      Back
-                    </Button>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" className="cursor-pointer gap-1.5 text-xs">
-                        <Save className="size-3.5" />
-                        Saved
-                      </Button>
+                  <div className="space-y-3 border-t border-border pt-4">
+                    {submitError && (
+                      <p className="text-center text-xs text-destructive">{submitError}</p>
+                    )}
+                    <div className="flex items-center justify-between gap-2">
                       <Button
+                        variant="ghost"
                         className="cursor-pointer gap-1.5"
-                        disabled={!canAdvance}
-                        onClick={advance}
+                        disabled={questionIndex === 0}
+                        onClick={goBack}
                       >
-                        {questionIndex + 1 === totalQuestions ? "Submit" : "Next"}
-                        <ArrowRight className="size-3.5" />
+                        <ArrowLeft className="size-3.5" />
+                        Back
                       </Button>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" className="cursor-pointer gap-1.5 text-xs">
+                          <Save className="size-3.5" />
+                          Saved
+                        </Button>
+                        <Button
+                          className="cursor-pointer gap-1.5"
+                          disabled={!canAdvance}
+                          onClick={advance}
+                        >
+                          {questionIndex + 1 === totalQuestions ? "Submit" : "Next"}
+                          <ArrowRight className="size-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </motion.div>

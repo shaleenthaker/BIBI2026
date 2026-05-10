@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Briefcase, ChevronRight, Gem, Send, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sparkline } from "@/components/sparkline";
-import { mockRoles, type Role } from "@/lib/mock-data";
+import { type Role } from "@/lib/mock-data";
 
 const PIPELINE_TREND: Record<string, number[]> = {
   frontend: [4, 5, 6, 7, 9, 10, 11, 12],
@@ -13,9 +13,11 @@ const PIPELINE_TREND: Record<string, number[]> = {
 };
 
 export function RoleList({
+  roles,
   onOpen,
   onCreate,
 }: {
+  roles: Role[];
   onOpen: (role: Role) => void;
   onCreate: () => void;
 }) {
@@ -35,7 +37,7 @@ export function RoleList({
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {mockRoles.map((role, i) => (
+        {roles.map((role, i) => (
           <motion.button
             key={role.id}
             type="button"

@@ -6,7 +6,7 @@ import { rolesRoute } from "./routes/roles.js";
 import { candidatesRoute } from "./routes/candidates.js";
 import { gemsRoute } from "./routes/gems.js";
 import { startDevpostWatcher } from "./jobs/devpost-watcher.js";
-import { startGradingWorker } from "./jobs/grading-worker.js";
+import { startGradingWorker, runGradingWorker } from "./jobs/grading-worker.js";
 import { oaRoute } from "./routes/oa.js";
 
 const app = new Hono();
@@ -36,6 +36,12 @@ app.route("/api/roles", rolesRoute);
 app.route("/api/candidates", candidatesRoute);
 app.route("/api/gems", gemsRoute);
 app.route("/api/oa", oaRoute);
+
+// Dev-only: manually trigger the grading worker without waiting for cron
+app.post("/dev/grade", async (c) => {
+  await runGradingWorker();
+  return c.json({ ok: true });
+});
 
 const port = Number(process.env.PORT ?? 8080);
 

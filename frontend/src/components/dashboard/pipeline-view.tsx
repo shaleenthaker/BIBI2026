@@ -10,7 +10,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,10 @@ import {
   type Weights,
 } from "@/components/weight-slider";
 import {
-  mockCandidates,
   type Candidate,
   type Role,
 } from "@/lib/mock-data";
+import { fetchCandidates } from "@/lib/api";
 
 export function PipelineView({
   role,
@@ -41,10 +41,12 @@ export function PipelineView({
   initialCandidateId?: string;
 }) {
   const [weights, setWeights] = useState<Weights>(defaultWeights);
-  const candidates = useMemo(
-    () => mockCandidates.filter((c) => c.roleId === role.id),
-    [role.id],
-  );
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+
+  useEffect(() => {
+    setCandidates([]);
+    fetchCandidates(role.id).then(setCandidates).catch(console.error);
+  }, [role.id]);
 
   const scored = useMemo(
     () =>
