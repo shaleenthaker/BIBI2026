@@ -1,45 +1,43 @@
 # sniper
 
-A Devpost-first recruiting platform that camps hackathon submissions, surfaces high-signal candidates before they post wins to LinkedIn, and auto-dispatches role-specific OAs.
+Devpost-first recruiting platform. Camps hackathon submissions, surfaces high-signal candidates before they post wins to LinkedIn, and auto-dispatches role-specific OAs.
 
-## Stack
+## Layout
 
-- **Next.js 16** (App Router, TypeScript, Turbopack)
-- **Tailwind v4** + **shadcn/ui** (neutral base, violet accent)
-- **Magic UI** — `BlurFade`, `NumberTicker`, `MagicCard`, `AnimatedList`, `ShimmerButton`, `Marquee`
-- **framer-motion** for layout animations and the weight-slider reshuffle
-- **Supabase** (`@supabase/ssr`) — wired up, ready for data
-- **next-themes** for dark/light toggle
+```
+sniper/
+├── frontend/   # Next.js 16 — landing, dashboard, OA, ethics
+└── backend/    # Hono + TypeScript — REST API, mock today, Supabase soon
+```
 
-## Routes
+Each side is a self-contained npm project with its own README.
 
-- `/` — landing
-- `/dashboard` — recruiter cockpit (roles, pipeline, weight controls, gem alerts)
-- `/oa/[token]` — applicant assessment
-- `/ethics` — sourcing & data ethics
+## Run both sides
 
-## Getting started
+In two terminals:
 
 ```bash
-cp .env.local.example .env.local   # add Supabase keys when wiring real data
-npm install
-npm run dev
+# terminal 1 — backend (port 8080)
+cd backend && npm install && npm run dev
+
+# terminal 2 — frontend (port 3000)
+cd frontend && npm install && npm run dev
 ```
 
 Open <http://localhost:3000>.
 
-## Design system
+## Per-folder docs
 
-See [`design-system/MASTER.md`](./design-system/MASTER.md) — GitHub-inspired density, Inter + JetBrains Mono, dark mode primary, single violet accent for CTAs and gem alerts.
+- [`frontend/README.md`](./frontend/README.md) — UI, routes, design system, build
+- [`backend/README.md`](./backend/README.md) — API endpoints, env vars, scripts
 
-## What's a "gem"?
+## Roadmap
 
-A candidate that clears your composite-score threshold. The dashboard highlights them with the violet `Gem` icon and pings recruiters via toast in real time. The dashboard ships with a "Simulate gem alert" debug button to demo the animation.
+The current cut is the UI shell + a mock API. Next:
 
-## What's not built yet
+1. Supabase schema + migrations
+2. Devpost watcher (cron job in `backend/`)
+3. Personalized OA generation + email dispatch
+4. LLM grading worker with anonymized inputs and audit log
 
-- Live Devpost scraping
-- Real OA email dispatch
-- LLM grading
-- Auth (mock recruiter)
-- Database migrations
+See [`frontend/design-system/MASTER.md`](./frontend/design-system/MASTER.md) for the visual language.
