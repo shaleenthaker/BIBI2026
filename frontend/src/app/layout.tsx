@@ -1,26 +1,35 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { EditorialShell } from "@/components/editorial/editorial-shell";
 
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
+const fraunces = Fraunces({
+  variable: "--font-serif-stack",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  axes: ["opsz", "SOFT"],
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  variable: "--font-mono-stack",
+  subsets: ["latin"],
+  weight: ["400", "500"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Sniper — Reach hackathon winners before LinkedIn does",
+  title: "Sniper — We read the commits before the résumé.",
   description:
-    "Devpost-first talent intelligence. Score hackathon submissions against your role, dispatch personalized assessments, and get notified the moment a candidate clears your bar.",
+    "A recruiter agent that indexes every public hackathon artifact — Devpost, GitHub, demo reels — and ranks the builders worth a call.",
 };
 
 export default function RootLayout({
@@ -32,17 +41,17 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${jakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${inter.variable} ${mono.variable}`}
     >
-      <body className="min-h-full bg-background text-foreground flex flex-col">
+      <body className="min-h-full bg-paper text-ink antialiased">
         <ThemeProvider
-          attribute="class"
+          attribute="data-theme"
           defaultTheme="light"
           enableSystem={false}
-          disableTransitionOnChange
+          disableTransitionOnChange={false}
         >
-          {children}
-          <Toaster richColors position="top-right" />
+          <EditorialShell>{children}</EditorialShell>
+          <Toaster position="top-right" />
         </ThemeProvider>
       </body>
     </html>

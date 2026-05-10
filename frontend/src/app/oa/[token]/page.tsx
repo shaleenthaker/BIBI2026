@@ -1,26 +1,11 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Eye,
-  Save,
-  Sparkles,
-} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { NumberTicker } from "@/components/ui/number-ticker";
-import { SiteMark } from "@/components/site-mark";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { type OAQuestion } from "@/lib/mock-data";
 import { fetchOA, submitOA, apiOAQuestionToOAQuestion } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import type { OAQuestion } from "@/lib/mock-data";
 
-type Stage = "loading" | "error" | "welcome" | "questions" | "submitted";
+type Stage = "loading" | "error" | "answering" | "submitted";
 
 export default function OAPage() {
   const params = useParams<{ token: string }>();
@@ -28,442 +13,329 @@ export default function OAPage() {
 
   const [stage, setStage] = useState<Stage>("loading");
   const [questions, setQuestions] = useState<OAQuestion[]>([]);
-  const [roleTitle, setRoleTitle] = useState("Assessment");
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [direction, setDirection] = useState<1 | -1>(1);
-  const [answers, setAnswers] = useState<Record<string, string | number>>({});
-  const [tabSwitches, setTabSwitches] = useState(0);
-  const [pasteEvents, setPasteEvents] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(45 * 60);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [candidateName, setCandidateName] = useState("M. Ostrowski");
+  const [projectName, setProjectName] = useState("NeuralCanvas");
+
+  const [i, setI] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     fetchOA(token)
       .then((data) => {
         setQuestions(data.questions.map(apiOAQuestionToOAQuestion));
-        setRoleTitle(data.candidate?.role_id ?? "Assessment");
-        setStage("welcome");
+        setCandidateName(data.candidate?.name ?? "M. Ostrowski");
+        setProjectName(data.candidate?.top_project?.name ?? "NeuralCanvas");
+        setStage("answering");
       })
       .catch(() => setStage("error"));
   }, [token]);
 
-  const current = questions[questionIndex];
-  const totalQuestions = questions.length;
+  const q = questions[i];
+  const total = questions.length;
+  const value = q ? answers[q.id] ?? "" : "";
+  const words = value.trim() ? value.trim().split(/\s+/).length : 0;
+  const lastInitial = useMemo(
+    () => {
+      const parts = candidateName.split(" ");
+      const first = parts[0]?.[0] ?? "M";
+      const last = parts[parts.length - 1] ?? "Ostrowski";
+      return `${first}. ${last}`;
+    },
+    [candidateName],
+  );
 
-  useEffect(() => {
-    if (stage !== "questions") return;
-    const onVis = () => {
-      if (document.visibilityState === "hidden") setTabSwitches((n) => n + 1);
-    };
-    const onPaste = () => setPasteEvents((n) => n + 1);
-    document.addEventListener("visibilitychange", onVis);
-    document.addEventListener("paste", onPaste);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      document.removeEventListener("paste", onPaste);
-    };
-  }, [stage]);
+  const setText = (v: string) => {
+    if (!q) return;
+    setAnswers((a) => ({ ...a, [q.id]: v }));
+  };
 
-  useEffect(() => {
-    if (stage !== "questions") return;
-    const id = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(id);
-  }, [stage]);
-
-  const minutesLeft = Math.floor(secondsLeft / 60);
-  const secsLeft = secondsLeft % 60;
-
-  const advance = async () => {
-    setDirection(1);
-    if (questionIndex + 1 < totalQuestions) {
-      setQuestionIndex((i) => i + 1);
-    } else {
+  const next = async () => {
+    if (i < total - 1) {
+      setI(i + 1);
+      return;
+    }
+    setSubmitting(true);
+    try {
       const responses = Object.entries(answers).map(([questionId, answer]) => ({
         questionId,
-        answer: String(answer),
+        answer,
       }));
-      try {
-        await submitOA(token, responses);
-        setStage("submitted");
-      } catch {
-        setSubmitError("Submission failed — please try again.");
-      }
+      await submitOA(token, responses);
+      setStage("submitted");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const goBack = () => {
-    setDirection(-1);
-    setQuestionIndex((i) => Math.max(0, i - 1));
-  };
-
-  const canAdvance = useMemo(() => {
-    if (!current) return false;
-    const a = answers[current.id];
-    if (current.type === "multiple-choice") return typeof a === "number";
-    return typeof a === "string" && a.trim().length > 0;
-  }, [current, answers]);
-
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Top frame */}
-      <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between px-5">
-          <div className="flex items-center gap-3">
-            <SiteMark size="sm" />
-            <span className="text-muted-foreground">·</span>
-            <span className="text-sm font-medium">{roleTitle}</span>
-            <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
-              · Acme Talent
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            {stage === "questions" && (
-              <div className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs">
-                <Clock className="size-3.5 text-muted-foreground" />
-                <span className="font-mono tabular-nums">
-                  <NumberTicker value={minutesLeft} />:
-                  {secsLeft.toString().padStart(2, "0")}
-                </span>
-              </div>
-            )}
-            <ThemeToggle />
-          </div>
-        </div>
+    <div className="grid min-h-[calc(100vh-72px)] grid-rows-[auto_1fr_auto]">
+      {/* header rail */}
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-rule px-14 py-8">
+        <span className="t-meta text-ink-soft">Sniper — commissioned assessment</span>
+        <span
+          className="font-serif italic text-ink-mid"
+          style={{ fontSize: 14 }}
+        >
+          For the consideration of{" "}
+          <em className="text-ink not-italic">{lastInitial}</em>{" "}
+          · on behalf of Pearl Labs
+        </span>
+        <span className="t-meta text-right text-ink-soft">
+          {String(i + 1).padStart(2, "0")} / {String(total || 1).padStart(2, "0")}
+        </span>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-10">
-        <AnimatePresence mode="wait">
-          {stage === "loading" && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-1 items-center justify-center py-24 text-sm text-muted-foreground"
+      {/* body */}
+      <section className="grid grid-cols-12 content-center gap-6 px-14 py-24">
+        {stage === "loading" && (
+          <div className="col-span-12 text-center font-mono text-xs text-ink-soft">
+            preparing your invitation…
+          </div>
+        )}
+
+        {stage === "error" && (
+          <div className="col-span-12 text-center">
+            <p
+              className="m-0"
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontStyle: "italic",
+                fontSize: 22,
+                color: "var(--ink-mid)",
+              }}
             >
-              Loading assessment…
-            </motion.div>
-          )}
+              This invitation is not currently valid. If you believe this is a mistake, please
+              write to the recruiting team that sent it.
+            </p>
+          </div>
+        )}
 
-          {stage === "error" && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="rounded-lg border border-border bg-card p-8 text-center"
+        {stage === "submitted" && (
+          <div className="col-span-12 text-center">
+            <p
+              className="m-0"
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: 44,
+                lineHeight: "50px",
+                letterSpacing: "-0.02em",
+                fontVariationSettings: '"opsz" 96',
+              }}
             >
-              <p className="text-sm font-medium">This link is invalid or has already been used.</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Contact the recruiting team if you believe this is a mistake.
-              </p>
-            </motion.div>
-          )}
-
-          {stage === "welcome" && <WelcomeStage key="welcome" onBegin={() => setStage("questions")} totalQuestions={totalQuestions} />}
-
-          {stage === "questions" && current && (
-            <motion.section
-              key="questions"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="space-y-5"
+              Thank you. Your reading is in.
+            </p>
+            <p
+              className="m-0 mt-6"
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontStyle: "italic",
+                fontSize: 20,
+                color: "var(--ink-mid)",
+              }}
             >
-              <Stepper
-                total={totalQuestions}
-                index={questionIndex}
-                tabSwitches={tabSwitches}
-                pasteEvents={pasteEvents}
-              />
+              You will hear back from a human, not an automated message.
+            </p>
+          </div>
+        )}
 
-              <AnimatePresence mode="wait" custom={direction}>
-                <motion.div
-                  key={current.id}
-                  custom={direction}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                  className="space-y-5 rounded-lg border border-border bg-card p-7"
-                >
-                  {current.type === "free-response" && (
-                    <div className="inline-flex items-center gap-2 rounded-md border border-accent/30 bg-info-soft px-2.5 py-1.5 text-[11px] text-foreground">
-                      <Sparkles className="size-3 text-accent" />
-                      Generated specifically from your Devpost project:{" "}
-                      <span className="font-mono font-medium">
-                        {current.personalizedFrom}
-                      </span>
-                    </div>
-                  )}
-
-                  <div>
-                    <div className="font-mono text-[11px] uppercase tracking-wider text-accent">
-                      Question {questionIndex + 1} of {totalQuestions}
-                    </div>
-                    <h2 className="mt-2 text-xl font-semibold leading-snug">{current.prompt}</h2>
-                  </div>
-
-                  {current.type === "multiple-choice" ? (
-                    <div className="space-y-2">
-                      {current.choices.map((choice, idx) => {
-                        const checked = answers[current.id] === idx;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() =>
-                              setAnswers((a) => ({ ...a, [current.id]: idx }))
-                            }
-                            className={cn(
-                              "group flex w-full items-start gap-3 rounded-md border bg-background px-4 py-3 text-left text-sm transition-colors duration-150 cursor-pointer",
-                              checked
-                                ? "border-accent bg-info-soft"
-                                : "border-border hover:bg-secondary",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2 transition-colors",
-                                checked
-                                  ? "border-accent bg-accent text-accent-foreground"
-                                  : "border-border bg-card text-muted-foreground",
-                              )}
-                              aria-hidden
-                            >
-                              <span className="font-mono text-[10px]">
-                                {String.fromCharCode(65 + idx)}
-                              </span>
-                            </span>
-                            <span>{choice}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <textarea
-                      value={(answers[current.id] as string | undefined) ?? ""}
-                      onChange={(e) =>
-                        setAnswers((a) => ({ ...a, [current.id]: e.target.value }))
-                      }
-                      placeholder="Be specific about the constraint, the choice, and what you learned. 4–8 sentences is plenty."
-                      rows={8}
-                      className="w-full rounded-md border border-border bg-background p-3 text-sm leading-relaxed outline-none transition-colors duration-150 focus:border-accent"
-                    />
-                  )}
-
-                  <div className="space-y-3 border-t border-border pt-4">
-                    {submitError && (
-                      <p className="text-center text-xs text-destructive">{submitError}</p>
-                    )}
-                    <div className="flex items-center justify-between gap-2">
-                      <Button
-                        variant="ghost"
-                        className="cursor-pointer gap-1.5"
-                        disabled={questionIndex === 0}
-                        onClick={goBack}
-                      >
-                        <ArrowLeft className="size-3.5" />
-                        Back
-                      </Button>
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" className="cursor-pointer gap-1.5 text-xs">
-                          <Save className="size-3.5" />
-                          Saved
-                        </Button>
-                        <Button
-                          className="cursor-pointer gap-1.5"
-                          disabled={!canAdvance}
-                          onClick={advance}
-                        >
-                          {questionIndex + 1 === totalQuestions ? "Submit" : "Next"}
-                          <ArrowRight className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-            </motion.section>
-          )}
-
-          {stage === "submitted" && (
-            <motion.section
-              key="submitted"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4 }}
-              className="rounded-lg border border-border bg-card p-12 text-center"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 240, damping: 16 }}
-                className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-success-soft text-success"
+        {stage === "answering" && q && (
+          <>
+            {/* Invite letter */}
+            <aside className="col-span-12 border-rule pr-8 md:col-span-4 md:col-start-2 md:border-r">
+              <div className="t-meta mb-4 text-ink-soft">An invitation</div>
+              <p
+                className="m-0 mb-4"
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontStyle: "italic",
+                  fontSize: 20,
+                  lineHeight: "30px",
+                  color: "var(--ink-mid)",
+                }}
               >
-                <CheckCircle2 className="size-6" />
-              </motion.div>
-              <h1 className="text-3xl font-semibold tracking-tight">
-                Thanks — your submission is in.
-              </h1>
-              <p className="mx-auto mt-3 max-w-sm text-muted-foreground">
-                The recruiting team will be in touch shortly. You don&apos;t need to do anything
-                else.
+                You have been invited to consider the following. There is no
+                timer in view. We would rather you think slowly than answer
+                quickly.
               </p>
-              <p className="mt-7 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                Submission id ·{" "}
-                <span className="text-foreground">oa_{Date.now().toString(36)}</span>
-              </p>
-            </motion.section>
-          )}
-        </AnimatePresence>
-      </main>
-    </div>
-  );
-}
-
-const slideVariants = {
-  enter: (dir: 1 | -1) => ({ opacity: 0, x: dir * 30 }),
-  center: { opacity: 1, x: 0 },
-  exit: (dir: 1 | -1) => ({ opacity: 0, x: dir * -30 }),
-};
-
-function WelcomeStage({
-  onBegin,
-  totalQuestions,
-}: {
-  onBegin: () => void;
-  totalQuestions: number;
-}) {
-  return (
-    <motion.section
-      key="welcome"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-6 rounded-lg border border-border bg-card p-8"
-    >
-      <div>
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-info-soft px-2.5 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-accent">
-          <Sparkles className="size-3" />
-          Personalized assessment
-        </span>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight">
-          Welcome — let&apos;s get started.
-        </h1>
-        <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-          This assessment takes ~45 minutes. {totalQuestions} questions total. The last question
-          is generated specifically from the project you submitted to Devpost.
-        </p>
-      </div>
-
-      <ul className="grid gap-2 text-sm">
-        <Bullet>
-          <strong className="font-medium">{totalQuestions} questions.</strong>{" "}
-          {totalQuestions - 1} multiple-choice, 1 free-response.
-        </Bullet>
-        <Bullet>Inline save — close the tab and your progress is kept.</Bullet>
-        <Bullet>
-          We track integrity signals (tab switches, paste events) for{" "}
-          <em>fairness</em>, not disqualification.
-        </Bullet>
-      </ul>
-
-      <Button size="lg" className="w-full cursor-pointer gap-2" onClick={onBegin}>
-        Begin assessment
-        <ArrowRight className="size-4" />
-      </Button>
-    </motion.section>
-  );
-}
-
-function Bullet({ children }: { children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-2.5 rounded-md border border-border bg-background px-3 py-2 text-sm">
-      <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" />
-      <span>{children}</span>
-    </li>
-  );
-}
-
-function Stepper({
-  total,
-  index,
-  tabSwitches,
-  pasteEvents,
-}: {
-  total: number;
-  index: number;
-  tabSwitches: number;
-  pasteEvents: number;
-}) {
-  return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-mono uppercase tracking-wider text-muted-foreground">
-          Progress
-        </span>
-        <IntegritySignals tabSwitches={tabSwitches} pasteEvents={pasteEvents} />
-      </div>
-      <ol className="flex items-center gap-1.5">
-        {Array.from({ length: total }).map((_, i) => {
-          const done = i < index;
-          const active = i === index;
-          return (
-            <li key={i} className="flex flex-1 items-center gap-1.5">
-              <span
-                className={cn(
-                  "grid size-6 place-items-center rounded-full border font-mono text-[10px] font-medium transition-colors duration-150",
-                  done && "border-success bg-success text-success-foreground",
-                  active && "border-accent bg-card text-accent",
-                  !done && !active && "border-border bg-card text-muted-foreground",
-                )}
+              <p
+                className="m-0 mb-4"
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontStyle: "italic",
+                  fontSize: 20,
+                  lineHeight: "30px",
+                  color: "var(--ink-mid)",
+                }}
               >
-                {done ? <CheckCircle2 className="size-3" /> : i + 1}
-              </span>
-              {i < total - 1 && (
-                <span
-                  className={cn(
-                    "h-px flex-1 transition-colors duration-150",
-                    done ? "bg-success" : "bg-border",
-                  )}
-                />
+                We are reading <em>{projectName}</em>, not your résumé. Please
+                write in your own voice — not the one you save for cover letters.
+              </p>
+              <div className="t-meta-italic mt-6 text-ink">
+                — Sara, on behalf of Pearl Labs
+                <br />
+                <span className="t-meta text-ink-soft">Posted via Sniper, ed. 14</span>
+              </div>
+            </aside>
+
+            {/* Question column */}
+            <div className="col-span-12 md:col-span-5 md:col-start-7">
+              <div
+                className="t-num mb-8"
+                style={{
+                  fontSize: 80,
+                  lineHeight: 1,
+                  color: "var(--accent)",
+                  letterSpacing: "-0.03em",
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}.
+              </div>
+              <h2
+                className="m-0 mb-6 text-balance"
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 40,
+                  lineHeight: "46px",
+                  letterSpacing: "-0.015em",
+                  fontVariationSettings: '"opsz" 96',
+                }}
+              >
+                {q.prompt}
+              </h2>
+
+              {q.type === "free-response" && (
+                <div className="t-meta mb-14 text-ink-soft">
+                  Free response · roughly 12 minutes · no timer in view ·{" "}
+                  <em
+                    className="not-italic text-ink"
+                    style={{ fontFamily: "var(--font-serif)", fontStyle: "italic" }}
+                  >
+                    drawn from your project
+                  </em>
+                </div>
               )}
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-}
+              {q.type === "multiple-choice" && (
+                <div className="t-meta mb-14 text-ink-soft">
+                  Choose one · roughly 4 minutes · no timer in view
+                </div>
+              )}
 
-function IntegritySignals({
-  tabSwitches,
-  pasteEvents,
-}: {
-  tabSwitches: number;
-  pasteEvents: number;
-}) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1 text-[10px] text-muted-foreground"
-      title="Tracked for fairness, not disqualification"
-    >
-      <Eye className="size-3" />
-      <span>
-        Tab switches:{" "}
-        <span className="font-mono tabular-nums text-foreground">{tabSwitches}</span>
-      </span>
-      <span aria-hidden>·</span>
-      <span>
-        Paste:{" "}
-        <span className="font-mono tabular-nums text-foreground">{pasteEvents}</span>
-      </span>
-    </span>
+              {q.type === "free-response" ? (
+                <>
+                  <textarea
+                    value={value}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Begin writing. Drafts save themselves."
+                    data-cursor="link"
+                    rows={8}
+                    className="w-full resize-y bg-transparent text-[18px] leading-[30px] text-ink outline-none border-b border-rule transition-colors duration-200 focus:border-ink"
+                    style={{
+                      fontFamily: "var(--font-sans)",
+                      padding: "12px 0",
+                      minHeight: 200,
+                    }}
+                  />
+                  <div className="t-meta mt-2 flex justify-between text-ink-soft">
+                    <span>{words} words</span>
+                    <span>Saved · 2 minutes ago</span>
+                  </div>
+                </>
+              ) : (
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
+                  {q.choices.map((choice, idx) => {
+                    const selected = answers[q.id] === String(idx);
+                    return (
+                      <li key={idx}>
+                        <button
+                          type="button"
+                          data-cursor="link"
+                          onClick={() => setText(String(idx))}
+                          className={
+                            "group flex w-full cursor-pointer items-start gap-4 border-b border-rule py-4 text-left transition-colors duration-200 " +
+                            (selected ? "text-ink" : "text-ink-mid hover:text-ink")
+                          }
+                        >
+                          <span
+                            className="t-num mt-1 text-[28px] leading-none"
+                            style={{
+                              color: selected ? "var(--accent)" : "var(--ink-soft)",
+                            }}
+                          >
+                            {String.fromCharCode(65 + idx)}
+                          </span>
+                          <span
+                            className="text-[18px] leading-[28px]"
+                            style={{ fontFamily: "var(--font-sans)" }}
+                          >
+                            {choice}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* footer */}
+      <footer className="grid grid-cols-3 items-center border-t border-rule px-14 py-6">
+        <div>
+          {stage === "answering" && (
+            <button
+              type="button"
+              data-cursor="link"
+              onClick={() => setI(Math.max(0, i - 1))}
+              disabled={i === 0}
+              className={
+                "u-link t-meta " +
+                (i === 0 ? "cursor-not-allowed text-ink-soft opacity-50" : "cursor-pointer text-ink-soft")
+              }
+            >
+              ← Previous question
+            </button>
+          )}
+        </div>
+        <div className="t-meta-italic justify-self-center text-ink-soft">
+          {stage === "answering" ? (
+            <>
+              Question {i + 1} of {total}
+            </>
+          ) : (
+            <>—</>
+          )}
+        </div>
+        <div className="justify-self-end">
+          {stage === "answering" &&
+            (i < total - 1 ? (
+              <button
+                type="button"
+                data-cursor="link"
+                data-cursor-label="Next"
+                onClick={next}
+                disabled={!value && q?.type !== "multiple-choice"}
+                className="u-link cta-accent t-meta cursor-pointer"
+              >
+                Continue to {String(i + 2).padStart(2, "0")} →
+              </button>
+            ) : (
+              <button
+                type="button"
+                data-cursor="link"
+                data-cursor-label="Send"
+                onClick={next}
+                disabled={submitting}
+                className="u-link cta-accent t-meta cursor-pointer"
+              >
+                {submitting ? "Submitting…" : "Submit for reading →"}
+              </button>
+            ))}
+        </div>
+      </footer>
+    </div>
   );
 }

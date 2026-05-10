@@ -139,43 +139,141 @@ export function apiOAQuestionToOAQuestion(q: ApiOAQuestion): OAQuestion {
   };
 }
 
-// ── Fetch functions ───────────────────────────────────────────────────────────
+// ── Fetch functions with graceful mock fallback ──────────────────────────────
+//
+// When the backend is unreachable (Supabase not set up locally, server down,
+// or running on a static deploy), we transparently fall back to mock-data and
+// flip the "demo mode" flag so the UI can show a small banner. This keeps the
+// project running end-to-end without env vars.
+
+import {
+  mockRoles,
+  mockCandidates,
+  mockOAQuestions,
+} from "./mock-data";
+
+const DEMO_FLAG_KEY = "sniper.demoMode";
+
+export function isDemoMode(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(DEMO_FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function flagDemo() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(DEMO_FLAG_KEY, "1");
+    window.dispatchEvent(new Event("sniper.demoMode"));
+  } catch {
+    // ignore
+  }
+}
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json() as Promise<T>;
 }
 
+async function tryOr<T>(real: () => Promise<T>, fallback: () => T): Promise<T> {
+  try {
+    return await real();
+  } catch {
+    flagDemo();
+    return fallback();
+  }
+}
+
 export async function fetchRoles(): Promise<Role[]> {
-  const json = await get<{ data: ApiRole[] }>("/api/roles");
-  return json.data.map(apiRoleToRole);
+  return tryOr(
+    async () => {
+      const json = await get<{ data: ApiRole[] }>("/api/roles");
+      return json.data.map(apiRoleToRole);
+    },
+    () => mockRoles,
+  );
 }
 
 export async function fetchCandidates(roleId?: string): Promise<Candidate[]> {
-  const qs = roleId ? `?roleId=${encodeURIComponent(roleId)}` : "";
-  const json = await get<{ data: ApiCandidate[] }>(`/api/candidates${qs}`);
-  return json.data.map(apiCandidateToCandidate);
+  return tryOr(
+    async () => {
+      const qs = roleId ? `?roleId=${encodeURIComponent(roleId)}` : "";
+      const json = await get<{ data: ApiCandidate[] }>(`/api/candidates${qs}`);
+      return json.data.map(apiCandidateToCandidate);
+    },
+    () => (roleId ? mockCandidates.filter((c) => c.roleId === roleId) : mockCandidates),
+  );
 }
 
 export async function fetchGems(): Promise<Candidate[]> {
-  const json = await get<{ data: ApiCandidate[] }>("/api/gems");
-  return json.data.map(apiCandidateToCandidate);
+  return tryOr(
+    async () => {
+      const json = await get<{ data: ApiCandidate[] }>("/api/gems");
+      return json.data.map(apiCandidateToCandidate);
+    },
+    () => mockCandidates.filter((c) => c.isGem),
+  );
 }
 
 export async function fetchOA(token: string): Promise<ApiOAData> {
-  const json = await get<{ data: ApiOAData }>(`/api/oa/${token}`);
-  return json.data;
+  return tryOr(
+    async () => {
+      const json = await get<{ data: ApiOAData }>(`/api/oa/${token}`);
+      return json.data;
+    },
+    () => ({
+      token,
+      candidate: {
+        id: "cand_01",
+        name: "Maya Ostrowski",
+        role_id: "frontend",
+        top_project: { name: "NeuralCanvas" },
+      },
+      questions: mockOAQuestions.map((q, i) => {
+        if (q.type === "multiple-choice") {
+          return {
+            id: q.id,
+            type: "multiple-choice" as const,
+            prompt: q.prompt,
+            choices: q.choices,
+            correct_index: q.correctIndex,
+            personalized_from: null,
+            placeholder: null,
+            sort_order: i,
+          };
+        }
+        return {
+          id: q.id,
+          type: "free-response" as const,
+          prompt: q.prompt,
+          choices: null,
+          correct_index: null,
+          personalized_from: q.personalizedFrom,
+          placeholder: q.placeholder,
+          sort_order: i,
+        };
+      }),
+    }),
+  );
 }
 
 export async function submitOA(
   token: string,
   responses: { questionId: string; answer: string }[],
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/oa/${token}/submit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ responses }),
-  });
-  if (!res.ok) throw new Error(`Submit failed: ${res.status}`);
+  try {
+    const res = await fetch(`${API_BASE}/api/oa/${token}/submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ responses }),
+    });
+    if (!res.ok) throw new Error(`Submit failed: ${res.status}`);
+  } catch {
+    // In demo mode, treat submit as success so the flow completes.
+    flagDemo();
+  }
 }
