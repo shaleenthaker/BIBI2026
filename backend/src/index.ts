@@ -5,6 +5,9 @@ import { logger } from "hono/logger";
 import { rolesRoute } from "./routes/roles.js";
 import { candidatesRoute } from "./routes/candidates.js";
 import { gemsRoute } from "./routes/gems.js";
+import { startDevpostWatcher } from "./jobs/devpost-watcher.js";
+import { startGradingWorker } from "./jobs/grading-worker.js";
+import { oaRoute } from "./routes/oa.js";
 
 const app = new Hono();
 
@@ -32,9 +35,12 @@ app.get("/health", (c) =>
 app.route("/api/roles", rolesRoute);
 app.route("/api/candidates", candidatesRoute);
 app.route("/api/gems", gemsRoute);
+app.route("/api/oa", oaRoute);
 
 const port = Number(process.env.PORT ?? 8080);
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`sniper-backend listening on http://localhost:${info.port}`);
+  startDevpostWatcher();
+  startGradingWorker();
 });
