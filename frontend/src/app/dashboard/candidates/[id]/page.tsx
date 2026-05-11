@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { fetchCandidates } from "@/lib/api";
+import { fetchCandidates, fetchCandidateProjects, type CandidateProject } from "@/lib/api";
 import { axisScores, composite, DEFAULT_WEIGHTS, RUBRIC_AXES, type RubricKey } from "@/lib/rubric";
 import type { Candidate } from "@/lib/mock-data";
 import {
@@ -19,6 +19,7 @@ export default function ReadingRoomPage() {
   const id = params?.id ?? "";
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [projects, setProjects] = useState<CandidateProject[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +31,15 @@ export default function ReadingRoomPage() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    fetchCandidateProjects(id).then((p) => alive && setProjects(p));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
 
   const candidate = useMemo(() => candidates.find((c) => c.id === id), [candidates, id]);
   const axes = useMemo(() => (candidate ? axisScores(candidate) : null), [candidate]);
@@ -251,35 +261,22 @@ export default function ReadingRoomPage() {
             </div>
           </Reveal>
 
-          {/* Projects */}
+          {/* Projects (from candidate_projects) */}
           <Reveal as="section">
             <h2 className="t-meta mt-12 mb-3 text-ink-soft">Recent projects · indexed</h2>
             <div className="border-t border-rule">
-              {[
-                {
-                  w: "May 04",
-                  t: candidate.topProject?.name ?? "Top project",
-                  h: candidate.topProject?.hackathon ?? "Hackathon",
-                  p: "Solo author. 31 commits in 48 hours. The README is short, which is good.",
-                },
-                {
-                  w: "Apr 21",
-                  t: "CRDT note app",
-                  h: "Side project",
-                  p: "Ships in 240ms on a throttled 3G. Tests are unfashionably thorough.",
-                },
-                {
-                  w: "Mar 11",
-                  t: "Static site generator in Zig",
-                  h: "Personal",
-                  p: "Footnote in Latin. Renders 1,000 pages in 80ms. Suspect, in a good way.",
-                },
-              ].map((p, i) => (
+              {projects.length === 0 && (
+                <p className="m-0 border-b border-rule py-6 font-mono text-[11px] text-ink-soft">
+                  no projects on file for this builder yet — the index is still
+                  catching up.
+                </p>
+              )}
+              {projects.map((p) => (
                 <article
-                  key={i}
+                  key={p.id}
                   className="grid grid-cols-[80px_1fr_auto] gap-6 border-b border-rule py-6"
                 >
-                  <div className="t-meta text-ink-soft">{p.w}</div>
+                  <div className="t-meta text-ink-soft">{formatProjectDate(p.occurredOn)}</div>
                   <div>
                     <h4
                       className="m-0 mb-1"
@@ -290,17 +287,17 @@ export default function ReadingRoomPage() {
                         letterSpacing: "-0.01em",
                       }}
                     >
-                      {p.t}
+                      {p.title}
                     </h4>
-                    <div className="text-[12px] text-ink-soft">{p.h}</div>
+                    <div className="text-[12px] text-ink-soft">{p.hackathon}</div>
                     <p className="m-0 mt-2 max-w-[60ch] text-[15px] leading-6 text-ink-mid">
-                      {p.p}
+                      {p.body}
                     </p>
                   </div>
                   <Link
-                    href="#"
-                    data-cursor="link"
-                    data-cursor-label="Open"
+                    href={p.url ?? "#"}
+                    target={p.url ? "_blank" : undefined}
+                    rel={p.url ? "noopener noreferrer" : undefined}
                     className="u-link t-meta self-start"
                   >
                     Read →
@@ -397,4 +394,11 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
       <span className={mono ? "font-mono text-ink" : "text-ink"}>{value}</span>
     </li>
   );
+}
+
+function formatProjectDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
 }

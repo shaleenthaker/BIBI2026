@@ -277,3 +277,207 @@ export async function submitOA(
     flagDemo();
   }
 }
+
+// ── Rubrics ───────────────────────────────────────────────────────────────────
+
+export type Rubric = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  weights: { craft: number; signal: number; depth: number; fit: number };
+  isDefault: boolean;
+  updatedAt: string | null;
+};
+
+const FALLBACK_RUBRICS: Rubric[] = [
+  {
+    id: "founding-eng",
+    slug: "founding-eng",
+    title: "Founding engineer",
+    description: "Hand of the writer over volume. Craft 35 / signal 35 / depth 20 / fit 10.",
+    weights: { craft: 35, signal: 35, depth: 20, fit: 10 },
+    isDefault: true,
+    updatedAt: null,
+  },
+  {
+    id: "forward-deployed",
+    slug: "forward-deployed",
+    title: "Forward-deployed",
+    description: "Velocity and adaptability. Signal 40 / fit 25 / craft 20 / depth 15.",
+    weights: { craft: 20, signal: 40, depth: 15, fit: 25 },
+    isDefault: false,
+    updatedAt: null,
+  },
+  {
+    id: "design-engineer",
+    slug: "design-engineer",
+    title: "Design engineer",
+    description: "Demo legibility weighted into craft. Craft 45 / depth 25 / signal 20 / fit 10.",
+    weights: { craft: 45, signal: 20, depth: 25, fit: 10 },
+    isDefault: false,
+    updatedAt: null,
+  },
+  {
+    id: "research",
+    slug: "research",
+    title: "Research-leaning",
+    description: "Depth of investigation, not throughput. Depth 45 / craft 30 / signal 15 / fit 10.",
+    weights: { craft: 30, signal: 15, depth: 45, fit: 10 },
+    isDefault: false,
+    updatedAt: null,
+  },
+];
+
+export async function fetchRubrics(): Promise<Rubric[]> {
+  return tryOr(
+    async () => {
+      const json = await get<{ data: Rubric[] }>("/api/rubrics");
+      return json.data;
+    },
+    () => FALLBACK_RUBRICS,
+  );
+}
+
+export async function saveRubric(
+  slug: string,
+  body: { title: string; description?: string; weights: Rubric["weights"] },
+): Promise<Rubric | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/rubrics/${encodeURIComponent(slug)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`save_rubric_failed: ${res.status}`);
+    const json = (await res.json()) as { data: Rubric };
+    return json.data;
+  } catch {
+    flagDemo();
+    return null;
+  }
+}
+
+// ── Outreach drafts ──────────────────────────────────────────────────────────
+
+export type OutreachDraft = {
+  id: string;
+  candidateId: string;
+  body: string;
+  status: "draft" | "copied" | "sent";
+  updatedAt: string | null;
+};
+
+export async function fetchOutreachDraft(candidateId: string): Promise<OutreachDraft | null> {
+  return tryOr(
+    async () => {
+      const json = await get<{ data: OutreachDraft | null }>(
+        `/api/outreach/${encodeURIComponent(candidateId)}`,
+      );
+      return json.data;
+    },
+    () => null,
+  );
+}
+
+export async function saveOutreachDraft(
+  candidateId: string,
+  body: { body: string; status?: OutreachDraft["status"] },
+): Promise<OutreachDraft | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/outreach/${encodeURIComponent(candidateId)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) throw new Error(`save_draft_failed: ${res.status}`);
+    const json = (await res.json()) as { data: OutreachDraft };
+    return json.data;
+  } catch {
+    flagDemo();
+    return null;
+  }
+}
+
+// ── Candidate projects (reading room) ─────────────────────────────────────────
+
+export type CandidateProject = {
+  id: string;
+  title: string;
+  hackathon: string;
+  body: string;
+  url: string | null;
+  occurredOn: string | null;
+  sortOrder: number;
+};
+
+const FALLBACK_PROJECTS: CandidateProject[] = [
+  {
+    id: "p1",
+    title: "Top project",
+    hackathon: "HackMIT 2025",
+    body: "Solo author. 31 commits in 48 hours. The README is short, which is good.",
+    url: null,
+    occurredOn: "2026-05-04",
+    sortOrder: 0,
+  },
+  {
+    id: "p2",
+    title: "CRDT note app",
+    hackathon: "Side project",
+    body: "Ships in 240ms on a throttled 3G. Tests are unfashionably thorough.",
+    url: null,
+    occurredOn: "2026-04-21",
+    sortOrder: 1,
+  },
+  {
+    id: "p3",
+    title: "Static site generator in Zig",
+    hackathon: "Personal",
+    body: "Footnote in Latin. Renders 1,000 pages in 80ms. Suspect, in a good way.",
+    url: null,
+    occurredOn: "2026-03-11",
+    sortOrder: 2,
+  },
+];
+
+export async function fetchCandidateProjects(
+  candidateId: string,
+): Promise<CandidateProject[]> {
+  return tryOr(
+    async () => {
+      const json = await get<{ data: CandidateProject[] }>(
+        `/api/candidates/${encodeURIComponent(candidateId)}/projects`,
+      );
+      return json.data;
+    },
+    () => FALLBACK_PROJECTS,
+  );
+}
+
+// ── Toggle gem ───────────────────────────────────────────────────────────────
+
+export async function toggleGem(
+  candidateId: string,
+  isGem?: boolean,
+): Promise<{ id: string; isGem: boolean } | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/candidates/${encodeURIComponent(candidateId)}/gem`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isGem === undefined ? {} : { isGem }),
+      },
+    );
+    if (!res.ok) throw new Error(`toggle_gem_failed: ${res.status}`);
+    const json = (await res.json()) as { data: { id: string; isGem: boolean } };
+    return json.data;
+  } catch {
+    flagDemo();
+    return null;
+  }
+}

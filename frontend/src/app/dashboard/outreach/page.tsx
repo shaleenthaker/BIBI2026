@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { fetchGems } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fetchGems, fetchOutreachDraft, saveOutreachDraft, type OutreachDraft } from "@/lib/api";
 import type { Candidate } from "@/lib/mock-data";
 import {
   DashboardChrome,
@@ -10,7 +10,8 @@ import {
   ExportLink,
 } from "@/components/editorial/dashboard-chrome";
 
-type DraftMap = Record<string, string>;
+type DraftStatus = OutreachDraft["status"];
+type SaveState = "idle" | "saving" | "saved" | "offline";
 
 const SUGGESTED_OPENERS = [
   "I read your project on {{project}} this morning — the part that caught me was",
@@ -21,8 +22,14 @@ const SUGGESTED_OPENERS = [
 export default function OutreachPage() {
   const [gems, setGems] = useState<Candidate[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<DraftMap>({});
 
+  // Local state per candidate so typing stays responsive while the DB
+  // upsert is in flight.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [statuses, setStatuses] = useState<Record<string, DraftStatus>>({});
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+
+  // Load gems
   useEffect(() => {
     let alive = true;
     fetchGems().then((g) => {
@@ -36,14 +43,52 @@ export default function OutreachPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load the draft when the active candidate changes (once per candidate)
+  const loadedFor = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeId || loadedFor.current.has(activeId)) return;
+    loadedFor.current.add(activeId);
+    fetchOutreachDraft(activeId).then((d) => {
+      if (!d) return;
+      setDrafts((cur) => (cur[activeId] === undefined ? { ...cur, [activeId]: d.body } : cur));
+      setStatuses((cur) => ({ ...cur, [activeId]: d.status }));
+    });
+  }, [activeId]);
+
+  // Debounced save on draft text change
+  const lastSavedBodies = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (!activeId) return;
+    const body = drafts[activeId];
+    if (body === undefined) return;
+    if (lastSavedBodies.current[activeId] === body) return;
+
+    setSaveState("saving");
+    const id = setTimeout(async () => {
+      const saved = await saveOutreachDraft(activeId, { body });
+      if (saved) {
+        setStatuses((cur) => ({ ...cur, [activeId]: saved.status }));
+        setSaveState("saved");
+        lastSavedBodies.current[activeId] = body;
+      } else {
+        setSaveState("offline");
+      }
+    }, 700);
+    return () => clearTimeout(id);
+  }, [drafts, activeId]);
+
   const active = useMemo(() => gems.find((g) => g.id === activeId) ?? null, [gems, activeId]);
   const value = active ? drafts[active.id] ?? "" : "";
+  const status = active ? statuses[active.id] ?? "draft" : "draft";
   const words = value.trim() ? value.trim().split(/\s+/).length : 0;
 
-  const setDraft = (v: string) => {
-    if (!active) return;
-    setDrafts((d) => ({ ...d, [active.id]: v }));
-  };
+  const setDraft = useCallback(
+    (v: string) => {
+      if (!active) return;
+      setDrafts((d) => ({ ...d, [active.id]: v }));
+    },
+    [active],
+  );
 
   const insertOpener = (template: string) => {
     if (!active) return;
@@ -54,31 +99,42 @@ export default function OutreachPage() {
     setDraft(`${text} `);
   };
 
+  const markCopied = async () => {
+    if (!active) return;
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      await navigator.clipboard.writeText(value).catch(() => undefined);
+    }
+    const saved = await saveOutreachDraft(active.id, { body: value, status: "copied" });
+    if (saved) {
+      setStatuses((cur) => ({ ...cur, [active.id]: "copied" }));
+    }
+  };
+
   return (
     <DashboardChrome
       kicker="composer · we do not send in your name · ever"
       title="Outreach drafts."
-      sub="Write the first note yourself, in your voice. We line up the context — the project, the commit you might mention, the rubric note — and stay out of the message."
+      sub="Write the first note yourself, in your voice. We line up the context and stay out of the message. Drafts save to your workspace automatically."
       actions={
         <>
           <DashboardCommand placeholder="search drafts, gems, templates…" />
-          <ExportLink>copy to clipboard</ExportLink>
+          <ExportLink>{status === "copied" ? "copied ✓" : "copy to clipboard"}</ExportLink>
         </>
       }
     >
       <div className="grid gap-10 md:grid-cols-[240px_minmax(0,1fr)_320px]">
-        {/* ── Recipient column ── */}
+        {/* Queue */}
         <aside className="border-r border-rule pr-6">
           <h3 className="t-meta mb-4 text-ink-soft">Queue · {gems.length} gems</h3>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {gems.map((c) => {
               const cur = c.id === activeId;
-              const drafted = !!drafts[c.id];
+              const draftedBody = drafts[c.id];
+              const draftStatus = statuses[c.id];
               return (
                 <li key={c.id}>
                   <button
                     type="button"
-                    data-cursor="link"
                     onClick={() => setActiveId(c.id)}
                     className={
                       "group flex w-full flex-col items-start gap-0.5 border-b border-rule py-3 text-left cursor-pointer transition-colors duration-200 " +
@@ -91,7 +147,11 @@ export default function OutreachPage() {
                         {cur && <span className="ml-2 text-accent">●</span>}
                       </span>
                       <span className="font-mono text-[10px] text-ink-soft">
-                        {drafted ? "drafted" : "—"}
+                        {draftStatus === "copied"
+                          ? "copied"
+                          : draftedBody
+                            ? "drafted"
+                            : "—"}
                       </span>
                     </span>
                     <span className="text-[11px] text-ink-soft">
@@ -102,12 +162,15 @@ export default function OutreachPage() {
               );
             })}
           </ul>
-          <Link href="/dashboard/gems" data-cursor="link" className="u-link t-meta mt-4 inline-block text-ink-soft">
+          <Link
+            href="/dashboard/gems"
+            className="u-link t-meta mt-4 inline-block text-ink-soft"
+          >
             View the gems wire →
           </Link>
         </aside>
 
-        {/* ── Composer ── */}
+        {/* Composer */}
         <div className="min-w-0">
           {active ? (
             <>
@@ -136,7 +199,6 @@ export default function OutreachPage() {
                   <button
                     key={i}
                     type="button"
-                    data-cursor="link"
                     onClick={() => insertOpener(tpl)}
                     className="u-link text-ink-mid hover:text-ink cursor-pointer"
                   >
@@ -150,39 +212,30 @@ export default function OutreachPage() {
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={`Write your own. We will not edit it, we will not send it. (Try mentioning ${active.topProject?.name ?? "the project"}.)`}
                 rows={14}
-                data-cursor="link"
                 className="w-full resize-y bg-transparent text-[18px] leading-[30px] text-ink outline-none border border-rule p-5 transition-colors duration-200 focus:border-ink"
                 style={{ fontFamily: "var(--font-sans)", minHeight: 260 }}
               />
               <div className="t-meta mt-2 flex justify-between text-ink-soft">
                 <span>{words} words · plain text</span>
-                <span>auto-save · 4 seconds ago</span>
+                <span>{describeSave(saveState)}</span>
               </div>
 
               <div className="mt-6 flex flex-wrap items-center gap-8">
                 <button
                   type="button"
-                  data-cursor="link"
-                  data-cursor-label="Copy"
-                  onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.clipboard) {
-                      navigator.clipboard.writeText(value);
-                    }
-                  }}
+                  onClick={markCopied}
                   className="u-link cta-accent t-meta cursor-pointer"
                 >
                   Copy draft to clipboard →
                 </button>
                 <Link
                   href={`/dashboard/candidates/${active.id}`}
-                  data-cursor="link"
                   className="u-link t-meta text-ink-soft"
                 >
                   Open the reading room
                 </Link>
                 <button
                   type="button"
-                  data-cursor="link"
                   className="u-link t-meta text-ink-soft cursor-pointer"
                   onClick={() => setDraft("")}
                 >
@@ -196,7 +249,7 @@ export default function OutreachPage() {
               >
                 A note on outreach. Sniper never sends a message on your behalf —
                 see{" "}
-                <Link href="/ethics#ii" data-cursor="link" className="u-link">
+                <Link href="/ethics#ii" className="u-link">
                   §II of the policy
                 </Link>
                 . The warmness of the first message is yours; we are only here
@@ -208,7 +261,7 @@ export default function OutreachPage() {
           )}
         </div>
 
-        {/* ── Context aside ── */}
+        {/* Context */}
         <aside className="sticky top-24 h-fit self-start border-l border-rule pl-6">
           {active ? (
             <>
@@ -262,4 +315,17 @@ export default function OutreachPage() {
       </div>
     </DashboardChrome>
   );
+}
+
+function describeSave(s: SaveState): string {
+  switch (s) {
+    case "saving":
+      return "saving…";
+    case "saved":
+      return "saved · just now";
+    case "offline":
+      return "offline · changes kept locally";
+    default:
+      return "drafts auto-save";
+  }
 }

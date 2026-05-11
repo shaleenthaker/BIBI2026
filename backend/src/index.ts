@@ -5,6 +5,8 @@ import { logger } from "hono/logger";
 import { rolesRoute } from "./routes/roles.js";
 import { candidatesRoute } from "./routes/candidates.js";
 import { gemsRoute } from "./routes/gems.js";
+import { rubricsRoute } from "./routes/rubrics.js";
+import { outreachRoute } from "./routes/outreach.js";
 import { startDevpostWatcher } from "./jobs/devpost-watcher.js";
 import { startGradingWorker, runGradingWorker } from "./jobs/grading-worker.js";
 import { oaRoute } from "./routes/oa.js";
@@ -35,6 +37,8 @@ app.get("/health", (c) =>
 app.route("/api/roles", rolesRoute);
 app.route("/api/candidates", candidatesRoute);
 app.route("/api/gems", gemsRoute);
+app.route("/api/rubrics", rubricsRoute);
+app.route("/api/outreach", outreachRoute);
 app.route("/api/oa", oaRoute);
 
 // Dev-only: manually trigger the grading worker without waiting for cron
