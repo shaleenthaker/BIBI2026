@@ -62,40 +62,10 @@
   /* motion */
   --ease-editorial: cubic-bezier(0.22, 1, 0.36, 1);
 
-  --animate-blink: blink 2.2s steps(2, end) infinite;
-  --animate-ticker: ticker 60s linear infinite;
   --animate-caret: caret 900ms steps(2, end) infinite;
-  --animate-marquee: marquee var(--duration) infinite linear;
 
-  @keyframes blink {
-    50% { opacity: 0.35; }
-  }
   @keyframes caret {
     50% { opacity: 0; }
-  }
-  @keyframes ticker {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-  }
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to   { transform: translateX(calc(-100% - var(--gap))); }
-  }
-  @keyframes sweep-in {
-    0%   { transform-origin: left;  transform: scaleX(0); }
-    50%  { transform-origin: left;  transform: scaleX(1); }
-    50.01% { transform-origin: right; }
-    100% { transform-origin: right; transform: scaleX(0); }
-  }
-  @keyframes sweep-out {
-    0%   { transform-origin: right; transform: scaleX(0); }
-    50%  { transform-origin: right; transform: scaleX(1); }
-    50.01% { transform-origin: left; }
-    100% { transform-origin: left;  transform: scaleX(0); }
-  }
-  @keyframes reveal-wipe {
-    from { transform: translateY(0); }
-    to   { transform: translateY(-100%); }
   }
 }
 
@@ -161,12 +131,6 @@
     background: var(--accent);
     color: var(--paper);
   }
-}
-
-/* hide native cursor when the custom cursor is active (only on real pointer devices) */
-@media (hover: hover) and (pointer: fine) {
-  body.cursor-active,
-  body.cursor-active * { cursor: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -352,18 +316,7 @@
   font-variation-settings: "opsz" 144;
 }
 
-/* console / live log panel */
-.console-shell {
-  background: var(--paper-deep);
-  border: 1px solid var(--rule);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 22px;
-  color: var(--ink-mid);
-  position: relative;
-}
-
-/* command palette teaser */
+/* command palette teaser — used by dashboard header */
 .cmd-row {
   display: flex; align-items: center; gap: 12px;
   border: 1px solid var(--rule);
@@ -374,16 +327,3 @@
 }
 .cmd-row .prompt { color: var(--accent); }
 .cmd-row .caret  { display: inline-block; width: 6px; height: 14px; background: var(--ink); animation: var(--animate-caret); vertical-align: -2px; }
-
-/* image vertical-wipe reveal — driven by data-state="reveal" */
-.reveal-wrap { position: relative; overflow: hidden; }
-.reveal-wrap::after {
-  content: "";
-  position: absolute; left: 0; right: 0; bottom: 0;
-  height: 100%;
-  background: var(--paper);
-  transform: translateY(0);
-  transition: transform 800ms var(--ease-editorial);
-  will-change: transform;
-}
-.reveal-wrap[data-state="reveal"]::after { transform: translateY(-100%); }

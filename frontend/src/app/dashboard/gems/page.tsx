@@ -10,7 +10,6 @@ import {
   DashboardCommand,
   ExportLink,
 } from "@/components/editorial/dashboard-chrome";
-import { LiveConsole } from "@/components/editorial/live-console";
 import { EditorialSparkline } from "@/components/editorial/sparkline";
 
 export default function GemsPage() {
@@ -56,34 +55,31 @@ export default function GemsPage() {
         </>
       }
     >
-      {/* ── Stat strip + live console ── */}
-      <section className="grid gap-10 border-b border-rule pb-10 lg:grid-cols-[1fr_minmax(360px,420px)]">
-        <div className="grid grid-cols-3 border-y border-rule">
-          {[
-            { l: "On the wire", n: String(ranked.length).padStart(2, "0") },
-            { l: "Top score", n: top },
-            { l: "Median score", n: median },
-          ].map((s) => (
-            <div
-              key={s.l}
-              className="py-8 pr-6 [&:not(:last-child)]:border-r [&:not(:last-child)]:border-rule"
+      {/* ── Stat strip ── */}
+      <section className="grid grid-cols-3 border-y border-rule">
+        {[
+          { l: "On the wire", n: String(ranked.length).padStart(2, "0") },
+          { l: "Top score", n: top },
+          { l: "Median score", n: median },
+        ].map((s) => (
+          <div
+            key={s.l}
+            className="py-8 pr-6 [&:not(:last-child)]:border-r [&:not(:last-child)]:border-rule"
+          >
+            <span
+              className="mb-3 block leading-none"
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: 64,
+                letterSpacing: "-0.03em",
+                fontVariationSettings: '"opsz" 144',
+              }}
             >
-              <span
-                className="mb-3 block leading-none"
-                style={{
-                  fontFamily: "var(--font-serif)",
-                  fontSize: 64,
-                  letterSpacing: "-0.03em",
-                  fontVariationSettings: '"opsz" 144',
-                }}
-              >
-                {s.n}
-              </span>
-              <span className="t-meta text-ink-soft">{s.l}</span>
-            </div>
-          ))}
-        </div>
-        <LiveConsole />
+              {s.n}
+            </span>
+            <span className="t-meta text-ink-soft">{s.l}</span>
+          </div>
+        ))}
       </section>
 
       {/* ── Editorial: latest dispatch ── */}
